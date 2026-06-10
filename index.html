@@ -283,10 +283,11 @@
     .col-news   { grid-column: span 5; }
     .col-pomo   { grid-column: span 6; }
     .col-cinema { grid-column: span 6; }
+    .col-hn     { grid-column: span 12; }
 
     @media (max-width: 1100px) {
       .col-clock, .col-weather, .col-news,
-      .col-pomo, .col-cinema { grid-column: span 12; }
+      .col-pomo, .col-cinema, .col-hn { grid-column: span 12; }
     }
 
     /* ===== Clock ===== */
@@ -387,6 +388,16 @@
       font-size: 13px;
       padding: 14px 0;
     }
+
+    .hn-score { color: var(--accent-2); font-weight: 600; }
+    .hn-meta {
+      color: var(--muted-2);
+      font-size: 11px;
+      margin-top: 3px;
+      letter-spacing: 0.3px;
+    }
+    .hn-meta a { color: var(--muted-2); display: inline; font-size: 11px; }
+    .hn-meta a:hover { color: var(--accent-2); }
 
     /* ===== Pomodoro ===== */
     .pomodoro-display {
@@ -920,6 +931,16 @@
         </div>
       </section>
 
+      <!-- Hacker News -->
+      <section class="card col-hn">
+        <h2>Hacker News
+          <span class="pill"><a href="https://news.ycombinator.com" target="_blank" rel="noopener" style="color:inherit;">news.ycombinator.com ↗</a></span>
+        </h2>
+        <ul class="news-list" id="hn-list">
+          <li class="news-empty">Hacker News wird geladen…</li>
+        </ul>
+      </section>
+
     </div>
 
     <footer>
@@ -1300,11 +1321,57 @@
     setInterval(loadNews, 60 * 60 * 1000);
 
     /* ----------------------------------------------------------
-       5. Regenradar entfernt – nur noch Link in der Wetter-Card
+       5. Hacker News
+       ---------------------------------------------------------- */
+    const hnList = document.getElementById("hn-list");
+    const HN_TOP = "https://hacker-news.firebaseio.com/v0/topstories.json";
+    const HN_ITEM = "https://hacker-news.firebaseio.com/v0/item/";
+
+    async function loadHN() {
+      try {
+        const idRes = await fetch(HN_TOP, { cache: "no-store" });
+        if (!idRes.ok) throw new Error("HTTP " + idRes.status);
+        const ids = (await idRes.json()).slice(0, 15);
+        const items = await Promise.all(
+          ids.map((id) =>
+            fetch(HN_ITEM + id + ".json", { cache: "no-store" }).then((r) => r.json())
+          )
+        );
+        hnList.innerHTML = "";
+        items.forEach((item) => {
+          if (!item || item.dead || item.deleted) return;
+          const url = item.url || "https://news.ycombinator.com/item?id=" + item.id;
+          const commentsUrl = "https://news.ycombinator.com/item?id=" + item.id;
+          const li = document.createElement("li");
+          li.className = "news-item";
+          li.innerHTML = `
+            <div class="news-body">
+              <a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(item.title || "(ohne Titel)")}</a>
+              <div class="hn-meta">
+                <span class="hn-score">${item.score || 0}</span> Punkte ·
+                von ${escapeHtml(item.by || "anon")} ·
+                <a href="${escapeHtml(commentsUrl)}" target="_blank" rel="noopener">${item.descendants != null ? item.descendants + " Kommentare" : "diskutieren"} ↗</a>
+              </div>
+            </div>
+          `;
+          hnList.appendChild(li);
+        });
+      } catch (e) {
+        console.warn("[hn] failed", e);
+        hnList.innerHTML =
+          '<li class="news-empty">Hacker News konnte nicht geladen werden. ' +
+          '<a href="https://news.ycombinator.com" target="_blank" rel="noopener">news.ycombinator.com öffnen ↗</a></li>';
+      }
+    }
+    loadHN();
+    setInterval(loadHN, 15 * 60 * 1000);
+
+    /* ----------------------------------------------------------
+       6. Regenradar entfernt
        ---------------------------------------------------------- */
 
     /* ----------------------------------------------------------
-       6. Pomodoro Timer
+       7. Pomodoro Timer
        ---------------------------------------------------------- */
     const pomoDisplay = document.getElementById("pomo-display");
     const pomoPhase   = document.getElementById("pomo-phase");
